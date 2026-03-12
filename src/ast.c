@@ -8,10 +8,10 @@
 #include <string.h>
 #include "ast.h"
 
-#define MAX_SYMBOLS 256
+#define MAX_SYMBOLS 1000000
 typedef struct {
   char* sym[MAX_SYMBOLS];
-  long val[MAX_SYMBOLS];
+  double val[MAX_SYMBOLS];
   int nth;
 } SymbolTable;
 
@@ -66,12 +66,12 @@ int lookupEntry(SymbolTable *table, char *name) {
   return -1;
 }
 
-int ast_getRecordedVal(int entry) {
+double ast_getRecordedVal(int entry) {
   return ConstTable.val[entry];
 }
 
 
-void recordVal(SymbolTable *table, char *name, long val) {
+void recordVal(SymbolTable *table, char *name, double val) {
   int i;
   
   for (i=0; i< table->nth; i++) {
@@ -142,15 +142,15 @@ Ast *ast_makeSymbol(char *name) {
   return ptr;
 }
 
-Ast *ast_makeInt(long num) {
+Ast *ast_makeFloat(double num) {
   Ast *ptr;
   ptr = ast_myalloc();
-  ptr->id = AST_INT;
-  ptr->longval = num;
+  ptr->id = AST_FLOAT;
+  ptr->doubleval = num;
   return ptr;
 }
 
-int ast_recordConst(char *name, int val) {
+int ast_recordConst(char *name, double val) {
   if (lookupEntry(&ConstTable, name) == -1) {
     recordVal(&ConstTable, name, val);
     return 1;
@@ -168,8 +168,8 @@ Ast *ast_makeAST(AST_ID id, Ast *left, Ast *right) {
     if (entry != -1) {
       
       ptr = ast_myalloc();
-      ptr->id = AST_INT;
-      ptr->longval = ConstTable.val[entry];
+      ptr->id = AST_FLOAT;
+      ptr->doubleval = ConstTable.val[entry];
       return ptr;
     }
   }
@@ -277,8 +277,8 @@ Ast *ast_getTail(Ast *p)
 void ast_puts(Ast *p) {
   static char *string_AstID[] = {
     // basic
-    "SYM", "NAME", "INTNAME", "AGENT",
-    "CNCT", "CNCT_TRO_INT", "CNCT_TRO_CONS", "CNCT_TRO",
+    "SYM", "NAME", "FLOATNAME", "AGENT",
+    "CNCT", "CNCT_TRO_FLOAT", "CNCT_TRO_CONS", "CNCT_TRO",
     "RULE", "BODY", "IF", "THEN_ELSE", 
 
     // LIST
@@ -289,7 +289,7 @@ void ast_puts(Ast *p) {
 
     // extension
     "TUPLE", 
-    "INT", "LD", "ADD", "SUB", "MUL", "DIV", "MOD", 
+    "FLOAT", "LD", "ADD", "SUB", "MUL", "DIV", "MOD", 
     "LT", "LE",  "EQ", "NE", "UNM", "AND", "OR", "NOT",
 
     
@@ -304,8 +304,8 @@ void ast_puts(Ast *p) {
   if (p==NULL) {printf("NULL"); return;}
 
   switch(p->id) {
-  case AST_INT:
-    printf("int %ld", p->longval);
+  case AST_FLOAT:
+    printf("double %f", p->doubleval);
     break;
   case AST_SYM:
     printf("%s", p->sym);
@@ -435,7 +435,7 @@ Ast *ast_remove_tuple1(Ast *p) {
   if (p==NULL) return p;
 
   switch(p->id) {
-  case AST_INT:
+  case AST_FLOAT:
     return p;
     break;
   case AST_SYM:

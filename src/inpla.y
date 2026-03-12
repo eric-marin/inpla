@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <sched.h>
+#include <math.h>
 
 #include "unlikely.h"
 #include "timer.h" //#include <time.h>
@@ -166,14 +167,14 @@ static char *Errormsg = NULL;
 
 %}
 %union{
-  long longval;
+  double doubleval;
   char *chval;
   Ast *ast;
 }
 
 %token <chval> NAME "NAME_LITERAL"
 %token <chval> AGENT "AGENT_LITERAL"
-%token <longval> NUMERAL_LITERAL
+%token <doubleval> NUMERAL_LITERAL
 %token <chval> STRING_LITERAL
 
 %token CROSS "><"
@@ -191,7 +192,7 @@ static char *Errormsg = NULL;
 %token GE ">="
 
 %token NOT AND OR
-%token INT LET IN END IF THEN ELSE WHERE RAND DEF
+%token FLOAT LET IN END IF THEN ELSE WHERE RAND DEF
 %token INTERFACE IFCE PRNAT FREE EXIT MEMSTAT
 %token END_OF_FILE USE
 
@@ -391,7 +392,7 @@ command:
   int entry=ast_recordConst($2,$4);
 
   if (!entry) {
-    printf("`%s' has been already bound to a value `%d' as immutable.\n\n",
+    printf("`%s' has been already bound to a value `%f' as immutable.\n\n",
 	   $2, ast_getRecordedVal(entry));
     fflush(stdout);
   }
@@ -400,7 +401,7 @@ command:
   int entry=ast_recordConst($2,$5*(-1));
 
   if (!entry) {
-    printf("`%s' has been already bound to a value `%d' as immutable.\n\n",
+    printf("`%s' has been already bound to a value `%f' as immutable.\n\n",
 	   $2, ast_getRecordedVal(entry));
     fflush(stdout);
   }
@@ -480,7 +481,7 @@ agent_percent
 ;
 
 val_declare
-: INT NAME { $$ = ast_makeAST(AST_INTVAR, ast_makeSymbol($2), NULL); }
+: FLOAT NAME { $$ = ast_makeAST(AST_FLOATVAR, ast_makeSymbol($2), NULL); }
 ;
 
 agent_cons
@@ -617,7 +618,7 @@ unary_expr
 
 primary_expr
 : nameterm { $$ = $1;}
-| NUMERAL_LITERAL { $$ = ast_makeInt($1); }
+| NUMERAL_LITERAL { $$ = ast_makeFloat($1); }
 | AGENT { $$=ast_makeAST(AST_AGENT, ast_makeSymbol($1), NULL); }
 | '(' expr ')' { $$ = $2; }
 
@@ -1096,11 +1097,12 @@ HoopList *HoopList_new_forAgent(unsigned int size) {
   }
   hp_list->size = size;
   
-  
+#ifndef SUPPRESS_OUTPUT
 #ifdef PUT_NEW_AGENTHOOP_TIME
   time=stop_timer(&t);
   printf("(%.6f sec)\n", 
 	 (double)(time)/1000000.0);
+#endif
 #endif
 
 
@@ -1679,7 +1681,7 @@ static int Puts_list_element=0;
 static int PutIndirection = 1; // indirected term t for x is put as x->t
 void puts_term(VALUE ptr) {
   if (IS_FIXNUM(ptr)) {
-    printf("%ld", FIX2INT(ptr));
+    printf("%f", FIX2FLOAT(ptr));
     return;
   } else if (BASIC(ptr) == NULL) {
     printf("<NULL>");
@@ -1772,7 +1774,7 @@ void puts_term(VALUE ptr) {
         
   } else if (BASIC(ptr)->id == ID_PERCENT) {
     printf("%%");
-    printf("%s", IdTable_get_name(FIX2INT(AGENT(ptr)->port[0])));
+    printf("%s", IdTable_get_name((int)FIX2FLOAT(AGENT(ptr)->port[0])));
     
   } else if (BASIC(ptr)->id == ID_WILDCARD) {
     printf("Wildcard");
@@ -2833,8 +2835,8 @@ void IMCode_puts(int n) {
     case OP_LOADI:
     case OP_EQI_R0:
     case OP_LOADI_SHARED:
-      printf("%s $%ld var%ld\n", string_opcode[imcode->opcode],
-	     imcode->operand1, imcode->operand2);
+      printf("%s $%f var%ld\n", string_opcode[imcode->opcode],
+	     FIX2FLOAT(imcode->operand1), imcode->operand2);
       break;
 
 
@@ -2865,8 +2867,8 @@ void IMCode_puts(int n) {
     case OP_ADDI:
     case OP_SUBI:
     case OP_EQI:
-      printf("%s var%ld $%ld var%ld\n", string_opcode[imcode->opcode],
-	     imcode->operand1, imcode->operand2, imcode->operand3);
+      printf("%s var%ld $%f var%ld\n", string_opcode[imcode->opcode],
+	     imcode->operand1, FIX2FLOAT(imcode->operand2), imcode->operand3);
       break;
 
 
@@ -2952,9 +2954,9 @@ void VMCode_puts(void **code, int n) {
       i+=2;
 
     } else if (code[i] == CodeAddr[OP_PUSHI]) {
-      printf("pushi reg%lu $%ld\n",
+      printf("pushi reg%lu $%f\n",
 	     (unsigned long)code[i+1],
-	     FIX2INT((unsigned long)code[i+2]));
+	     FIX2FLOAT((unsigned long)code[i+2]));
       i+=2;
 
     } else if (code[i] == CodeAddr[OP_MYPUSH]) {
@@ -2976,8 +2978,8 @@ void VMCode_puts(void **code, int n) {
       puts("ret_free_lr");
 
     } else if (code[i] == CodeAddr[OP_LOADI]) {
-      printf("loadi $%ld reg%lu\n",
-	     FIX2INT((unsigned long)code[i+1]),
+      printf("loadi $%f reg%lu\n",
+	     FIX2FLOAT((unsigned long)code[i+1]),
 	     (unsigned long)code[i+2]);
       i+=2;
       
@@ -2989,13 +2991,13 @@ void VMCode_puts(void **code, int n) {
       i+=3;
       
     } else if (code[i] == CodeAddr[OP_LOADP_L]) {
-      printf("loadp_l reg%lu $%ld\n",
+      printf("loadp_l reg%lu $%lu\n",
 	     (unsigned long)code[i+1],
 	     (unsigned long)code[i+2]);
       i+=2;
       
     } else if (code[i] == CodeAddr[OP_LOADP_R]) {
-      printf("loadp_r reg%lu $%ld\n",
+      printf("loadp_r reg%lu $%lu\n",
 	     (unsigned long)code[i+1],
 	     (unsigned long)code[i+2]);
       i+=2;
@@ -3115,9 +3117,9 @@ void VMCode_puts(void **code, int n) {
       i+=3;
 
     } else if (code[i] == CodeAddr[OP_EQI]) {
-      printf("eqi reg%lu $%ld reg%lu\n",
+      printf("eqi reg%lu $%f reg%lu\n",
 	     (unsigned long)code[i+1],
-	     FIX2INT((unsigned long)code[i+2]),
+	     FIX2FLOAT((unsigned long)code[i+2]),
 	     (unsigned long)code[i+3]);
       i+=3;
 
@@ -3147,9 +3149,9 @@ void VMCode_puts(void **code, int n) {
       i+=2;
 
     } else if (code[i] == CodeAddr[OP_EQI_R0]) {
-      printf("eqi_r0 reg%lu $%ld\n",
+      printf("eqi_r0 reg%lu $%f\n",
 	     (unsigned long)code[i+1],
-	     FIX2INT((unsigned long)code[i+2]));
+	     FIX2FLOAT((unsigned long)code[i+2]));
       i+=2;
 
     } else if (code[i] == CodeAddr[OP_NE_R0]) {
@@ -3268,14 +3270,14 @@ typedef enum {
   NB_NAME=0,
   NB_META_L,
   NB_META_R,
-  NB_INTVAR,
+  NB_FLOATVAR,
   NB_WILDCARD,
 } NB_TYPE;
 
 
 // NBIND 数は meta数(MAX_PORT*2) + 一つの rule（や eqlist） における
 // 最大name出現数(100)
-#define MAX_NBIND MAX_PORT*2+100
+#define MAX_NBIND 1000000
 typedef struct {
   char *name;
   int reg;
@@ -3283,7 +3285,7 @@ typedef struct {
               // >0: local name
               // (for the bind names: should be 1)
               // (for the int names: not paticular)
-  NB_TYPE type; // NB_NAME, NB_META_L (or R), NB_INTVAR, NB_WILDCARD
+  NB_TYPE type; // NB_NAME, NB_META_L (or R), NB_FLOATVAR, NB_WILDCARD
 } NameBind;
 
 
@@ -3338,7 +3340,7 @@ typedef struct {
 // Annotation states
 #define ANNOTATE_NOTHING      0 // The rule agent is not reused.
 #define ANNOTATE_REUSE        1 // Annotation (*L), (*R) is specified.
-#define ANNOTATE_INT_MODIFIER 2 // (int i), therefore it must not be freed.
+#define ANNOTATE_FLOAT_MODIFIER 2 // (int i), therefore it must not be freed.
 #define ANNOTATE_WILDCARD     3 // Wildcard Agent, therefore it must not be freed.
 #define ANNOTATE_TCO          4 // Annotated and reused as TCO.
 
@@ -3441,11 +3443,11 @@ void CmEnv_clear_keeping_rule_properties(void)
   CmEnv_clear_bind(CmEnv.bindPtr_metanames);
 
   // Except of  ANNOTATE_INT and ANNOTATE_WILDCARD
-  if ((CmEnv.annotateL != ANNOTATE_INT_MODIFIER)
+  if ((CmEnv.annotateL != ANNOTATE_FLOAT_MODIFIER)
       && (CmEnv.annotateL != ANNOTATE_WILDCARD)) {
     CmEnv.annotateL = ANNOTATE_NOTHING;
   }
-  if ((CmEnv.annotateR != ANNOTATE_INT_MODIFIER)
+  if ((CmEnv.annotateR != ANNOTATE_FLOAT_MODIFIER)
       && (CmEnv.annotateR != ANNOTATE_WILDCARD)) {
     CmEnv.annotateR = ANNOTATE_NOTHING;
   }
@@ -3518,14 +3520,14 @@ void CmEnv_set_symbol_as_meta(char *name, int reg, NB_TYPE type) {
 }
 
 
-int CmEnv_set_as_INTVAR(char *name) {
+int CmEnv_set_as_FLOATVAR(char *name) {
   int result;
 
   if (name != NULL) {
     CmEnv.bind[CmEnv.bindPtr].name = name;
     CmEnv.bind[CmEnv.bindPtr].reg = CmEnv.localNamePtr;
     CmEnv.bind[CmEnv.bindPtr].refnum = 0;
-    CmEnv.bind[CmEnv.bindPtr].type = NB_INTVAR;
+    CmEnv.bind[CmEnv.bindPtr].type = NB_FLOATVAR;
     result = CmEnv.localNamePtr;
 
     CmEnv.bindPtr++;
@@ -4501,7 +4503,7 @@ int CmEnv_generate_VMCode(void **code, int max_size) {
 #endif
       
       code[addr++] = CodeAddr[imcode->opcode];
-      code[addr++] = (void *)INT2FIX(imcode->operand1);      
+      code[addr++] = (void *)imcode->operand1;
       code[addr++] = (void *)(unsigned long)dest;      
       
       break;
@@ -4522,7 +4524,7 @@ int CmEnv_generate_VMCode(void **code, int max_size) {
 #endif
       
       code[addr++] = CodeAddr[OP_LOADI];
-      code[addr++] = (void *)INT2FIX(imcode->operand1);      
+      code[addr++] = (void *)imcode->operand1;
       code[addr++] = (void *)(unsigned long)dest;      
       
       break;
@@ -4652,7 +4654,7 @@ int CmEnv_generate_VMCode(void **code, int max_size) {
             
       code[addr++] = CodeAddr[imcode->opcode];
       code[addr++] = (void *)(unsigned long)src1;      
-      code[addr++] = (void *)(unsigned long)imcode->operand2;
+      code[addr++] = (void *)imcode->operand2;
       code[addr++] = (void *)(unsigned long)dest;      
 
       break;
@@ -4674,7 +4676,7 @@ int CmEnv_generate_VMCode(void **code, int max_size) {
             
       code[addr++] = CodeAddr[imcode->opcode];
       code[addr++] = (void *)(unsigned long)src1;      
-      code[addr++] = (void *)INT2FIX(imcode->operand2);
+      code[addr++] = (void *)imcode->operand2;
       code[addr++] = (void *)(unsigned long)dest;      
 
       break;
@@ -4736,7 +4738,7 @@ int CmEnv_generate_VMCode(void **code, int max_size) {
       
       code[addr++] = CodeAddr[imcode->opcode];
       code[addr++] = (void *)(unsigned long)src1;      
-      code[addr++] = (void *)INT2FIX(imcode->operand2);
+      code[addr++] = (void *)imcode->operand2;
       break;      
     }
       
@@ -4787,8 +4789,7 @@ int CmEnv_generate_VMCode(void **code, int max_size) {
       code[addr++] = CodeAddr[imcode->opcode];
       code[addr++] = (void *)(unsigned long)src1;      
       // int
-      code[addr++] = (void *)INT2FIX(imcode->operand2);      
-      
+      code[addr++] = (void *)imcode->operand2;
       break;
     }
       
@@ -5096,7 +5097,7 @@ int Ast_is_expr(Ast *ptr) {
   }
 
   switch (ptr->id) {
-  case AST_INT:
+  case AST_FLOAT:
     return 1;
     break;
 
@@ -5106,7 +5107,7 @@ int Ast_is_expr(Ast *ptr) {
     if (result == 0) {
       return 0;
     }
-    if (type != NB_INTVAR) {
+    if (type != NB_FLOATVAR) {
       return 0;
     }
 
@@ -5418,7 +5419,7 @@ int Ast_make_annotation_TailCallOptimisation(Ast *mainbody) {
   // Return 1 when annotated.
   //
   // When there is an equation for TCO, its ID is changed from AST_CNCT into
-  // AST_CNCT_TCO_INTVAR or AST_CNCT_TCO.
+  // AST_CNCT_TCO_FLOATVAR or AST_CNCT_TCO.
 
   
   if (mainbody == NULL)
@@ -5478,7 +5479,7 @@ int Ast_make_annotation_TailCallOptimisation(Ast *mainbody) {
       if (Ast_is_expr(constructor_agent)) {
 	// --- CASE 1: rule_left_agent ~ expression
 	available_TCO = 1;	
-	astID_of_TCO = AST_CNCT_TCO_INTVAR;
+	astID_of_TCO = AST_CNCT_TCO_FLOATVAR;
 	
       } else if (constructor_agent->id == AST_NAME) {
 	// --- CASE 2: rule_left_agent ~ name   where the name is meta_R
@@ -5545,15 +5546,17 @@ int Compile_expr_on_ast(Ast *ptr, int target) {
     return 1;
   }
   switch (ptr->id) {
-  case AST_INT:
-    IMCode_genCode2(OP_LOADI, ptr->longval, target);
+  case AST_FLOAT: {
+    IMCode_genCode2(OP_LOADI, FLOAT2FIX(ptr->doubleval), target);
     return 1;
     break;
+  }
 
-  case AST_NAME: {
+  case AST_NAME:
+  case AST_FLOATVAR: {
     int result = CmEnv_find_var(ptr->left->sym);
     if (result == -1) {
-      //      result=CmEnv_set_as_INTVAR(ptr->left->sym);
+      //      result=CmEnv_set_as_FLOATVAR(ptr->left->sym);
 
       // Increase the counter of compilation errors
       CmEnv.count_compilation_errors++;
@@ -5568,7 +5571,7 @@ int Compile_expr_on_ast(Ast *ptr, int target) {
       NB_TYPE type;
       int get_result;
       get_result = CmEnv_gettype_forname((ptr)->left->sym, &type);
-      if ((get_result) && (type != NB_INTVAR)) {
+      if ((get_result) && (type != NB_FLOATVAR)) {
 	printf("%d:Warning: `%s' is used as a property variable, although is is not declared as so.\n",
 	       yylineno,
 	       (ptr)->left->sym);
@@ -5668,13 +5671,13 @@ int Compile_expr_on_ast(Ast *ptr, int target) {
     if (!Compile_expr_on_ast(ptr->right, newreg2)) return 0;
     IMCode_genCode2(OP_JMPEQ0, newreg2, label1);
 
-    IMCode_genCode2(OP_LOADI_SHARED, 1, target);
+    IMCode_genCode2(OP_LOADI_SHARED, FLOAT2FIX(1.0), target);
     
     int label2 = CmEnv_get_newlabel();
     IMCode_genCode1(OP_JMP, label2);
 
     IMCode_genCode1(OP_LABEL, label1);
-    IMCode_genCode2(OP_LOADI_SHARED, 0, target);
+    IMCode_genCode2(OP_LOADI_SHARED, FLOAT2FIX(0.0), target);
     
     IMCode_genCode1(OP_LABEL, label2);
 
@@ -5703,13 +5706,13 @@ int Compile_expr_on_ast(Ast *ptr, int target) {
     if (!Compile_expr_on_ast(ptr->right, newreg2)) return 0;
     IMCode_genCode2(OP_JMPNEQ0, newreg2, label1);
 
-    IMCode_genCode2(OP_LOADI_SHARED, 0, target);
+    IMCode_genCode2(OP_LOADI_SHARED, FLOAT2FIX(0.0), target);
     
     int label2 = CmEnv_get_newlabel();
     IMCode_genCode1(OP_JMP, label2);
 
     IMCode_genCode1(OP_LABEL, label1);
-    IMCode_genCode2(OP_LOADI_SHARED, 1, target);
+    IMCode_genCode2(OP_LOADI_SHARED, FLOAT2FIX(1.0), target);
     
     IMCode_genCode1(OP_LABEL, label2);
 
@@ -5731,13 +5734,13 @@ int Compile_expr_on_ast(Ast *ptr, int target) {
     int label1 = CmEnv_get_newlabel();
     IMCode_genCode2(OP_JMPEQ0, newreg, label1);
 
-    IMCode_genCode2(OP_LOADI, 0, target);
+    IMCode_genCode2(OP_LOADI, FLOAT2FIX(0.0), target);
     
     int label2 = CmEnv_get_newlabel();
     IMCode_genCode1(OP_JMP, label2);
 
     IMCode_genCode1(OP_LABEL, label1);
-    IMCode_genCode2(OP_LOADI, 1, target);
+    IMCode_genCode2(OP_LOADI, FLOAT2FIX(1.0), target);
     
     IMCode_genCode1(OP_LABEL, label2);
 
@@ -5783,11 +5786,21 @@ int Compile_term_on_ast(Ast *ptr, int target) {
     return result;
     break;
 
-  case AST_INT:
-    result = CmEnv_newvar();
-    IMCode_genCode2(OP_LOADI, ptr->longval, result);
+  case AST_FLOATVAR: {
+    result = CmEnv_find_var(ptr->left->sym);
+    if (result == -1) {
+      result = CmEnv_set_as_FLOATVAR(ptr->left->sym);
+    }
     return result;
     break;
+  }
+
+  case AST_FLOAT: {
+    result = CmEnv_newvar();
+    IMCode_genCode2(OP_LOADI, FLOAT2FIX(ptr->doubleval), result);
+    return result;
+    break;
+  }
 
   case AST_NIL:
     if (target == -1) {      
@@ -6148,7 +6161,7 @@ int check_invalid_occurrence_as_rule(Ast *ast) {
 
     if (CmEnv_gettype_forname(ast->left->sym, &type)) {
       /*
-      if (type == NB_INTVAR) {
+      if (type == NB_FLOATVAR) {
 	printf("ERROR: The variable '%s' for an integer cannot be used as an agent ",
 	       ast->left->sym);
 	return 0;
@@ -6158,7 +6171,7 @@ int check_invalid_occurrence_as_rule(Ast *ast) {
       //      printf("ERROR: The name '%s' is not bound ", ast->left->sym);
       //      return 0;
     }
-  } else if (ast->id == AST_INT) {
+  } else if (ast->id == AST_FLOAT) {
     //    printf("ERROR: The integer '%d' is used as an agent ",
     //	   ast->intval);
     //    return 0;
@@ -6265,7 +6278,7 @@ int Compile_eqlist_on_ast_in_rulebody(Ast *at) {
       // Check for: x:int~expr
       if ((eq->left)->id == AST_NAME) {
 	int result = CmEnv_gettype_forname((eq->left)->left->sym, &type);
-	if ((result != 0) && (type == NB_INTVAR)) {
+	if ((result != 0) && (type == NB_FLOATVAR)) {
 	  // the left term is a variable on property
 	
 	  if (Ast_is_expr(eq->right)) {
@@ -6275,7 +6288,7 @@ int Compile_eqlist_on_ast_in_rulebody(Ast *at) {
 	  
 	  } else if ((eq->right)->id == AST_NAME) {
 	    result = CmEnv_gettype_forname((eq->right)->left->sym, &type);
-	    if ((result !=0) && (type == NB_INTVAR)) {
+	    if ((result !=0) && (type == NB_FLOATVAR)) {
 	      printf("%d:Warning: The variable `%s' is connected to a variable %s. It may cause runtime error.\n",
 		     yylineno,
 		     (eq->left)->left->sym, (eq->right)->left->sym);	    
@@ -6287,7 +6300,7 @@ int Compile_eqlist_on_ast_in_rulebody(Ast *at) {
       // Check for: expr~x:int
       if ((eq->right)->id == AST_NAME) {
 	int result = CmEnv_gettype_forname((eq->right)->left->sym, &type);
-	if ((result != 0) && (type == NB_INTVAR)) {
+	if ((result != 0) && (type == NB_FLOATVAR)) {
 	  // the right term is a variable on property
 	
 	  if (Ast_is_expr(eq->left)) {
@@ -6298,7 +6311,7 @@ int Compile_eqlist_on_ast_in_rulebody(Ast *at) {
 	  } else {
 	    if ((eq->left)->id == AST_NAME) {
 	      result = CmEnv_gettype_forname((eq->left)->left->sym, &type);
-	      if ((result !=0) && (type == NB_INTVAR)) {
+	      if ((result !=0) && (type == NB_FLOATVAR)) {
 		printf("%d:Warning: The variable `%s' is connected to a variable %s. It may cause runtime error.\n",
 		       yylineno,
 		       (eq->right)->left->sym, (eq->left)->left->sym);	    
@@ -6381,7 +6394,7 @@ int Compile_eqlist_on_ast_in_rulebody(Ast *at) {
 	// operation for the last placed equation.
      
 
-	if (eq->id == AST_CNCT_TCO_INTVAR) {
+	if (eq->id == AST_CNCT_TCO_FLOATVAR) {
 	  // rule_left_agent ~ expression
 
 	  // It always becomes loop operation
@@ -6648,7 +6661,7 @@ int Compile_stmlist_on_ast(Ast *at) {
     toRegLeft = CmEnv_find_var(ptr->left->left->sym);
     if (toRegLeft == -1) {
       // the sym is new
-      toRegLeft = CmEnv_set_as_INTVAR(ptr->left->left->sym);
+      toRegLeft = CmEnv_set_as_FLOATVAR(ptr->left->left->sym);
     } else {
       printf("%d:Warning: `%s' has been already defined.\n",
 	     yylineno, ptr->left->left->sym);
@@ -6659,14 +6672,15 @@ int Compile_stmlist_on_ast(Ast *at) {
       // y is a name
       int toRegRight = CmEnv_find_var(ptr->right->left->sym);
       if (toRegRight == -1) {
-	toRegRight = CmEnv_set_as_INTVAR(ptr->right->left->sym);
+	toRegRight = CmEnv_set_as_FLOATVAR(ptr->right->left->sym);
       }
       IMCode_genCode2(OP_LOAD, toRegRight, toRegLeft);
       
 
-    } else if (ptr->right->id == AST_INT) {
-      // y is an integer
-      IMCode_genCode2(OP_LOADI, ptr->right->longval, toRegLeft);
+    } else if (ptr->right->id == AST_FLOAT) {
+      // y is a double
+      IMCode_genCode2(OP_LOADI, FLOAT2FIX(ptr->right->doubleval), toRegLeft);
+
       
     } else {
       // y is an expression
@@ -7083,7 +7097,7 @@ void RuleTable_get_code_for_Int(VALUE heap_syml, void ***code) {
 
   RuleList *at = RuleTable[syml];
   while (at != NULL) {
-    if (at->sym == ID_INT) {
+    if (at->sym == ID_FLOAT) {
 
       if (at->available == 0) {
 	return;
@@ -7143,7 +7157,7 @@ void *RuleTable_get_code(int symlID, int symrID, int *result) {
 static inline
 void RuleTable_get_code_for_Int(VALUE heap_syml, void ***code) {
   int symlID = AGENT(heap_syml)->basic.id;
-  *code =  RuleTable[ID_INT][symlID];
+  *code =  RuleTable[ID_FLOAT][symlID];
 }
 
 #endif
@@ -7190,8 +7204,8 @@ int set_metaL(Ast *ast) {
     
     if (ptr->left->id == AST_NAME) {
       type = NB_META_L;
-    } else if (ptr->left->id == AST_INTVAR) {
-      type = NB_INTVAR;
+    } else if (ptr->left->id == AST_FLOATVAR) {
+      type = NB_FLOATVAR;
     } else if (ptr->left->id == AST_AGENT) {
       printf("Error: `%s' isn't a name in the left-hand side of this rule active pair.\n", ptr->left->left->sym);
       return 0;
@@ -7218,8 +7232,8 @@ int set_metaR(Ast *ast) {
 
     if (ptr->left->id == AST_NAME) {
       type = NB_META_R;
-    } else if (ptr->left->id == AST_INTVAR) {
-      type = NB_INTVAR;
+    } else if (ptr->left->id == AST_FLOATVAR) {
+      type = NB_FLOATVAR;
     } else if (ptr->left->id == AST_AGENT) {
       printf("Error: `%s' isn't a name in the right-hand side of this rule active pair.\n", ptr->left->left->sym);
       return 0;
@@ -7237,13 +7251,13 @@ int set_metaR(Ast *ast) {
 }
 
 
-void set_metaL_as_IntName(Ast *ast) {
-  CmEnv_set_symbol_as_meta(ast->left->sym, VM_OFFSET_ANNOTATE_L, NB_INTVAR);
+void set_metaL_as_FloatName(Ast *ast) {
+  CmEnv_set_symbol_as_meta(ast->left->sym, VM_OFFSET_ANNOTATE_L, NB_FLOATVAR);
   
 }
 
-void set_metaR_as_IntName(Ast *ast) {
-  CmEnv_set_symbol_as_meta(ast->left->sym, VM_OFFSET_ANNOTATE_R, NB_INTVAR);
+void set_metaR_as_FloatName(Ast *ast) {
+  CmEnv_set_symbol_as_meta(ast->left->sym, VM_OFFSET_ANNOTATE_R, NB_FLOATVAR);
 }
 
 
@@ -7280,14 +7294,14 @@ int get_ruleagentID(Ast *ruleAgent) {
   } else if (ruleAgent->id == AST_NIL) {
     id = ID_NIL;
     
-  } else if (ruleAgent->id == AST_INTVAR) {
-    id = ID_INT;
+  } else if (ruleAgent->id == AST_FLOATVAR) {
+    id = ID_FLOAT;
 
   } else if (ruleAgent->id == AST_NAME) {
     id = ID_WILDCARD;
 
-  } else if (strcmp((char *)ruleAgent->left->sym, "Int") == 0) {
-    id = ID_INTAGENT;
+  } else if (strcmp((char *)ruleAgent->left->sym, "Float") == 0) {
+    id = ID_FLOATAGENT;
   } else {
 
     id = IdTable_getid_builtin_funcAgent(ruleAgent);
@@ -7359,7 +7373,7 @@ int make_rule_oneway(Ast *ast) {
   idR = get_ruleagentID(ruleAgent_R);  
   
   // Peel the tuple1 such as `(int i)'
-  // int i は (AST_INTVAR (AST_SYM sym NULL) NULL) として構築されているので
+  // double i は (AST_FLOATVAR (AST_SYM sym NULL) NULL) として構築されているので
   // ID_TUPLE1 である間は読み飛ばす
   while (idR == ID_TUPLE1) {
     ruleAgent_R = ruleAgent_R->right->left;
@@ -7413,7 +7427,7 @@ int make_rule_oneway(Ast *ast) {
   
   // IMPORTANT:
   // The first two codes stores arities of idL and idR, respectively.
-  if ((idL == ID_INT) || (idL == ID_WILDCARD)) {
+  if ((idL == ID_FLOAT) || (idL == ID_WILDCARD)) {
     arity = 0;
   } else {
     arity = get_arity_on_ast(ruleAgent_L);
@@ -7427,7 +7441,7 @@ int make_rule_oneway(Ast *ast) {
   IdTable_set_arity(idL, arity);
   code[0] = (void *)(unsigned long)arity;
   
-  if ((idR == ID_INT) || (idR == ID_WILDCARD)) {
+  if ((idR == ID_FLOAT) || (idR == ID_WILDCARD)) {
     arity = 0;
   } else {
     arity = get_arity_on_ast(ruleAgent_R);
@@ -7446,9 +7460,9 @@ int make_rule_oneway(Ast *ast) {
 
   
  
-  if (idL == ID_INT) {
-    set_metaL_as_IntName(ruleAgent_L);
-    CmEnv.annotateL = ANNOTATE_INT_MODIFIER; // to prevent putting Free_L
+  if (idL == ID_FLOAT) {
+    set_metaL_as_FloatName(ruleAgent_L);
+    CmEnv.annotateL = ANNOTATE_FLOAT_MODIFIER; // to prevent putting Free_L
   } else if (idL == ID_WILDCARD) {
     set_metaL_as_AnyAgent(ruleAgent_L);
     CmEnv.annotateL = ANNOTATE_WILDCARD; // to prevent putting Free_L
@@ -7458,9 +7472,9 @@ int make_rule_oneway(Ast *ast) {
     }
   }
   
-  if (idR == ID_INT) {
-    set_metaR_as_IntName(ruleAgent_R);
-    CmEnv.annotateR = ANNOTATE_INT_MODIFIER;  // to prevent putting Free_R
+  if (idR == ID_FLOAT) {
+    set_metaR_as_FloatName(ruleAgent_R);
+    CmEnv.annotateR = ANNOTATE_FLOAT_MODIFIER;  // to prevent putting Free_R
   } else if (idR == ID_WILDCARD) {
     set_metaR_as_AnyAgent(ruleAgent_R);
     CmEnv.annotateR = ANNOTATE_WILDCARD;  // to prevent putting Free_R
@@ -7593,16 +7607,16 @@ int make_rule_oneway(Ast *ast) {
   //    #define DEBUG_PUT_RULE_CODE    
 #ifdef DEBUG_PUT_RULE_CODE  
   if (((strcmp(IdTable_get_name(idL), "Fib") == 0) &&
-       (idR == ID_INT))
+       (idR == ID_FLOAT))
       ||
       ((strcmp(IdTable_get_name(idL), "fib") == 0) &&
-       (idR == ID_INT))
+       (idR == ID_FLOAT))
       ||
       ((strcmp(IdTable_get_name(idL), "Ack") == 0) &&
-       (idR == ID_INT))
+       (idR == ID_FLOAT))
       ||
       ((strcmp(IdTable_get_name(idL), "Ackm") == 0) &&
-       (idR == ID_INT))
+       (idR == ID_FLOAT))
       ||
       ((strcmp(IdTable_get_name(idL), "MergeCC") == 0) &&
        (idR == ID_CONS))
@@ -7618,13 +7632,14 @@ int make_rule_oneway(Ast *ast) {
     }
 #endif
 
-
+#ifndef SUPPRESS_OUTPUT
 #ifdef PUT_RULE_COMPILATION_TIME
   time=stop_timer(&t);
   printf("(Compilation of %s><%s takes %.6f sec)\n", 
 	 IdTable_get_name(idL),
 	 IdTable_get_name(idR),
 	 (double)(time)/1000000.0);
+#endif
 #endif
     
   
@@ -8039,7 +8054,7 @@ void *exec_code(int mode, VirtualMachine * restrict vm, void * restrict *code) {
   //      puts("pushi reg fixint");
   {
     VALUE a1 = reg[(unsigned long)code[++pc]];    
-    VALUE a2 = (unsigned long)code[++pc];
+    VALUE a2 = (VALUE)code[++pc];
     PUSH(vm, a1, a2);    
   }  
   goto *code[++pc];
@@ -8059,8 +8074,10 @@ void *exec_code(int mode, VirtualMachine * restrict vm, void * restrict *code) {
   
  E_LOADI:
   //    puts("loadi num dest");
-  i = (long)code[++pc];  
-  reg[(unsigned long)code[++pc]] = i;
+  {
+    VALUE val = (VALUE)code[++pc];  
+    reg[(unsigned long)code[++pc]] = val;
+  }
   goto *code[++pc];
 
 
@@ -8195,20 +8212,20 @@ void *exec_code(int mode, VirtualMachine * restrict vm, void * restrict *code) {
  E_ADD:
   //    puts("ADD src1 src2 dest");
   {
-    long i = FIX2INT(reg[(unsigned long)code[++pc]]);
-    long j = FIX2INT(reg[(unsigned long)code[++pc]]);
+    double i = FIX2FLOAT(reg[(unsigned long)code[++pc]]);
+    double j = FIX2FLOAT(reg[(unsigned long)code[++pc]]);
     
-    reg[(unsigned long)code[++pc]] = INT2FIX(i+j);
+    reg[(unsigned long)code[++pc]] = FLOAT2FIX(i+j);
   }
   goto *code[++pc];
 
  E_SUB:
   //    puts("SUB src1 src2 dest");
   {
-    long i = FIX2INT(reg[(unsigned long)code[++pc]]);
-    long j = FIX2INT(reg[(unsigned long)code[++pc]]);
+    double i = FIX2FLOAT(reg[(unsigned long)code[++pc]]);
+    double j = FIX2FLOAT(reg[(unsigned long)code[++pc]]);
     
-    reg[(unsigned long)code[++pc]] = INT2FIX(i-j);
+    reg[(unsigned long)code[++pc]] = FLOAT2FIX(i-j);
   }
   goto *code[++pc];
 
@@ -8216,10 +8233,10 @@ void *exec_code(int mode, VirtualMachine * restrict vm, void * restrict *code) {
  E_ADDI:
   //  puts("ADDI src int dest");
   {
-    long i = FIX2INT(reg[(unsigned long)code[++pc]]);
-    long j = (unsigned long)code[++pc];
+    double i = FIX2FLOAT(reg[(unsigned long)code[++pc]]);
+    double j = FIX2FLOAT((VALUE)code[++pc]);
     
-    reg[(unsigned long)code[++pc]] = INT2FIX(i+j);
+    reg[(unsigned long)code[++pc]] = FLOAT2FIX(i+j);
   }
   goto *code[++pc];
 
@@ -8227,10 +8244,10 @@ void *exec_code(int mode, VirtualMachine * restrict vm, void * restrict *code) {
  E_SUBI:
   //  puts("SUBI src int dest");
   {
-    long i = FIX2INT(reg[(unsigned long)code[++pc]]);
-    long j = (unsigned long)code[++pc];
+    double i = FIX2FLOAT(reg[(unsigned long)code[++pc]]);
+    double j = FIX2FLOAT((VALUE)code[++pc]);
     
-    reg[(unsigned long)code[++pc]] = INT2FIX(i-j);
+    reg[(unsigned long)code[++pc]] = FLOAT2FIX(i-j);
   }
   goto *code[++pc];
 
@@ -8238,10 +8255,10 @@ void *exec_code(int mode, VirtualMachine * restrict vm, void * restrict *code) {
  E_MUL:
   //    puts("MUL src1 src2 dest");
   {
-    long i = FIX2INT(reg[(unsigned long)code[++pc]]);
-    long j = FIX2INT(reg[(unsigned long)code[++pc]]);
+    double i = FIX2FLOAT(reg[(unsigned long)code[++pc]]);
+    double j = FIX2FLOAT(reg[(unsigned long)code[++pc]]);
     
-    reg[(unsigned long)code[++pc]] = INT2FIX(i*j);
+    reg[(unsigned long)code[++pc]] = FLOAT2FIX(i*j);
   }
   goto *code[++pc];
 
@@ -8249,35 +8266,33 @@ void *exec_code(int mode, VirtualMachine * restrict vm, void * restrict *code) {
  E_DIV:
   //    puts("DIV src1 src2 dest");
   {
-    long i = FIX2INT(reg[(unsigned long)code[++pc]]);
-    long j = FIX2INT(reg[(unsigned long)code[++pc]]);
+    double i = FIX2FLOAT(reg[(unsigned long)code[++pc]]);
+    double j = FIX2FLOAT(reg[(unsigned long)code[++pc]]);
     
-    reg[(unsigned long)code[++pc]] = INT2FIX(i/j);
+    reg[(unsigned long)code[++pc]] = FLOAT2FIX(i/j);
   }
   goto *code[++pc];
 
  E_MOD:
   //    puts("MOD src1 src2 dest");
   {
-    long i = FIX2INT(reg[(unsigned long)code[++pc]]);
-    long j = FIX2INT(reg[(unsigned long)code[++pc]]);
+    double i = FIX2FLOAT(reg[(unsigned long)code[++pc]]);
+    double j = FIX2FLOAT(reg[(unsigned long)code[++pc]]);
     
-    reg[(unsigned long)code[++pc]] = INT2FIX(i%j);
+    reg[(unsigned long)code[++pc]] = FLOAT2FIX(fmod(i, j));
   }
   goto *code[++pc];
 
  E_LT:
   //    puts("LT src1 src2 dest");
   {
-    //    int i = FIX2INT(reg[(unsigned long)code[pc++]]);
-    //    int j = FIX2INT(reg[(unsigned long)code[pc++]]);
-    long i = reg[(unsigned long)code[++pc]];
-    long j = reg[(unsigned long)code[++pc]];
+    double i = FIX2FLOAT(reg[(unsigned long)code[++pc]]);
+    double j = FIX2FLOAT(reg[(unsigned long)code[++pc]]);
 
     if (i<j) {
-      reg[(unsigned long)code[++pc]] = INT2FIX(1);
+      reg[(unsigned long)code[++pc]] = FLOAT2FIX(1.0f);
     } else {
-      reg[(unsigned long)code[++pc]] = INT2FIX(0);
+      reg[(unsigned long)code[++pc]] = FLOAT2FIX(0.0f);
     }
   }
   goto *code[++pc];
@@ -8286,13 +8301,13 @@ void *exec_code(int mode, VirtualMachine * restrict vm, void * restrict *code) {
  E_LE:
   //    puts("LT src1 src2 dest");
   {
-    long i = reg[(unsigned long)code[++pc]];
-    long j = reg[(unsigned long)code[++pc]];
+    double i = FIX2FLOAT(reg[(unsigned long)code[++pc]]);
+    double j = FIX2FLOAT(reg[(unsigned long)code[++pc]]);
 
     if (i<=j) {
-      reg[(unsigned long)code[++pc]] = INT2FIX(1);
+      reg[(unsigned long)code[++pc]] = FLOAT2FIX(1.0f);
     } else {
-      reg[(unsigned long)code[++pc]] = INT2FIX(0);
+      reg[(unsigned long)code[++pc]] = FLOAT2FIX(0.0f);
     }
   }
   goto *code[++pc];
@@ -8301,13 +8316,13 @@ void *exec_code(int mode, VirtualMachine * restrict vm, void * restrict *code) {
  E_EQ:
   //    puts("EQ src1 src2 dest");
   {
-    long i = reg[(unsigned long)code[++pc]];
-    long j = reg[(unsigned long)code[++pc]];
+    double i = FIX2FLOAT(reg[(unsigned long)code[++pc]]);
+    double j = FIX2FLOAT(reg[(unsigned long)code[++pc]]);
 
     if (i==j) {
-      reg[(unsigned long)code[++pc]] = INT2FIX(1);
+      reg[(unsigned long)code[++pc]] = FLOAT2FIX(1.0f);
     } else {
-      reg[(unsigned long)code[++pc]] = INT2FIX(0);
+      reg[(unsigned long)code[++pc]] = FLOAT2FIX(0.0f);
     }
   }
   goto *code[++pc];
@@ -8317,13 +8332,13 @@ void *exec_code(int mode, VirtualMachine * restrict vm, void * restrict *code) {
  E_EQI:
   //    puts("EQI src1 fixint dest");
   {
-    long i = reg[(unsigned long)code[++pc]];
-    long j = (unsigned long)code[++pc];
+    double i = FIX2FLOAT(reg[(unsigned long)code[++pc]]);
+    double j = FIX2FLOAT((VALUE)code[++pc]);
 
     if (i==j) {
-      reg[(unsigned long)code[++pc]] = INT2FIX(1);
+      reg[(unsigned long)code[++pc]] = FLOAT2FIX(1.0f);
     } else {
-      reg[(unsigned long)code[++pc]] = INT2FIX(0);
+      reg[(unsigned long)code[++pc]] = FLOAT2FIX(0.0f);
     }
   }
   goto *code[++pc];
@@ -8333,13 +8348,13 @@ void *exec_code(int mode, VirtualMachine * restrict vm, void * restrict *code) {
  E_NE:
   //    puts("NE src1 src2 dest");
   {
-    long i = reg[(unsigned long)code[++pc]];
-    long j = reg[(unsigned long)code[++pc]];
+    double i = FIX2FLOAT(reg[(unsigned long)code[++pc]]);
+    double j = FIX2FLOAT(reg[(unsigned long)code[++pc]]);
 
     if (i!=j) {
-      reg[(unsigned long)code[++pc]] = INT2FIX(1);
+      reg[(unsigned long)code[++pc]] = FLOAT2FIX(1.0f);
     } else {
-      reg[(unsigned long)code[++pc]] = INT2FIX(0);
+      reg[(unsigned long)code[++pc]] = FLOAT2FIX(0.0f);
     }
   }
   goto *code[++pc];
@@ -8349,8 +8364,8 @@ void *exec_code(int mode, VirtualMachine * restrict vm, void * restrict *code) {
  E_LT_R0:
   //    puts("LT_R0 src1 src2");
   {
-    long i = reg[(unsigned long)code[++pc]];
-    long j = reg[(unsigned long)code[++pc]];
+    double i = FIX2FLOAT(reg[(unsigned long)code[++pc]]);
+    double j = FIX2FLOAT(reg[(unsigned long)code[++pc]]);
 
     if (i<j) {
       reg[0] = 1;
@@ -8364,8 +8379,8 @@ void *exec_code(int mode, VirtualMachine * restrict vm, void * restrict *code) {
  E_LE_R0:
   //    puts("LE_R0 src1 src2");
   {
-    long i = reg[(unsigned long)code[++pc]];
-    long j = reg[(unsigned long)code[++pc]];
+    double i = FIX2FLOAT(reg[(unsigned long)code[++pc]]);
+    double j = FIX2FLOAT(reg[(unsigned long)code[++pc]]);
 
     if (i<=j) {
       reg[0] = 1;
@@ -8379,8 +8394,8 @@ void *exec_code(int mode, VirtualMachine * restrict vm, void * restrict *code) {
  E_EQ_R0:
   //    puts("EQ_R0 src1 src2");
   {
-    long i = reg[(unsigned long)code[++pc]];
-    long j = reg[(unsigned long)code[++pc]];
+    double i = FIX2FLOAT(reg[(unsigned long)code[++pc]]);
+    double j = FIX2FLOAT(reg[(unsigned long)code[++pc]]);
 
     if (i==j) {
       reg[0] = 1;
@@ -8394,8 +8409,8 @@ void *exec_code(int mode, VirtualMachine * restrict vm, void * restrict *code) {
  E_EQI_R0:
   //      puts("EQI_R0 src1 int");
   {
-    long i = reg[(unsigned long)code[++pc]];
-    long j = (unsigned long)code[++pc];
+    double i = FIX2FLOAT(reg[(unsigned long)code[++pc]]);
+    double j = FIX2FLOAT((VALUE)code[++pc]);
 
     if (i==j) {
       reg[0] = 1;
@@ -8411,8 +8426,8 @@ void *exec_code(int mode, VirtualMachine * restrict vm, void * restrict *code) {
  E_NE_R0:
   //    puts("NE_R0 src1 src2");
   {
-    long i = reg[(unsigned long)code[++pc]];
-    long j = reg[(unsigned long)code[++pc]];
+    double i = FIX2FLOAT(reg[(unsigned long)code[++pc]]);
+    double j = FIX2FLOAT(reg[(unsigned long)code[++pc]]);
 
     if (i!=j) {
       reg[0] = 1;
@@ -8430,7 +8445,7 @@ void *exec_code(int mode, VirtualMachine * restrict vm, void * restrict *code) {
   //    the pc is a relative address, not absolute one!
   {
     long i = reg[(unsigned long)code[++pc]];
-    if (!FIX2INT(i)) {
+    if (!(int)FIX2FLOAT(i)) {
       int j = (unsigned long)code[++pc];
       pc += j;
     } else {
@@ -8460,7 +8475,7 @@ void *exec_code(int mode, VirtualMachine * restrict vm, void * restrict *code) {
   //      puts("JMPNEQ0 reg pc");
   {
     long i = reg[(unsigned long)code[++pc]];
-    if (FIX2INT(i)) {
+    if ((int)FIX2FLOAT(i)) {
       int j = (unsigned long)code[++pc];
       pc += j;
     } else {
@@ -8608,14 +8623,14 @@ void *exec_code(int mode, VirtualMachine * restrict vm, void * restrict *code) {
 #if !defined(OPTIMISE_TWO_ADDRESS) || !defined(OPTIMISE_TWO_ADDRESS_UNARY)
   //    puts("UNM src dest");
   {
-    long i = FIX2INT(reg[(unsigned long)code[++pc]]);    
-    reg[(unsigned long)code[++pc]] = INT2FIX(-1 * i);
+    double i = FIX2FLOAT(reg[(unsigned long)code[++pc]]);    
+    reg[(unsigned long)code[++pc]] = FLOAT2FIX(-1.0f * i);
   }
 #else
   //    puts("UNM dest");
   {
-    long i = FIX2INT(reg[(unsigned long)code[++pc]]);
-    reg[(unsigned long)code[pc]] = INT2FIX(-1 * i);
+    double i = FIX2FLOAT(reg[(unsigned long)code[++pc]]);
+    reg[(unsigned long)code[pc]] = FLOAT2FIX(-1.0f * i);
   }
 #endif  
   goto *code[++pc];
@@ -8625,14 +8640,14 @@ void *exec_code(int mode, VirtualMachine * restrict vm, void * restrict *code) {
 #if !defined(OPTIMISE_TWO_ADDRESS) || !defined(OPTIMISE_TWO_ADDRESS_UNARY)
   //    puts("RAND src dest");
   {
-    long i = FIX2INT(reg[(unsigned long)code[++pc]]);    
-    reg[(unsigned long)code[++pc]] = INT2FIX(rand() % i);
+    double i = FIX2FLOAT(reg[(unsigned long)code[++pc]]);    
+    reg[(unsigned long)code[++pc]] = FLOAT2FIX((double)(rand() % (int)i));
   }
 #else
   //    puts("RAND dest");
   {
-    long i = FIX2INT(reg[(unsigned long)code[++pc]]);    
-    reg[(unsigned long)code[pc]] = INT2FIX(rand() % i);
+    double i = FIX2FLOAT(reg[(unsigned long)code[++pc]]);    
+    reg[(unsigned long)code[pc]] = FLOAT2FIX((double)(rand() % (int)i));
   }  
 #endif  
   goto *code[++pc];
@@ -8642,14 +8657,14 @@ void *exec_code(int mode, VirtualMachine * restrict vm, void * restrict *code) {
 #if !defined(OPTIMISE_TWO_ADDRESS) || !defined(OPTIMISE_TWO_ADDRESS_UNARY)
   //    puts("INC src dest");
   {
-    long i = FIX2INT(reg[(unsigned long)code[++pc]]);    
-    reg[(unsigned long)code[++pc]] = INT2FIX(++i);
+    double i = FIX2FLOAT(reg[(unsigned long)code[++pc]]);    
+    reg[(unsigned long)code[++pc]] = FLOAT2FIX(++i);
   }
 #else
   //    puts("INC src");
   {
-    long i = FIX2INT(reg[(unsigned long)code[++pc]]);    
-    reg[(unsigned long)code[pc]] = INT2FIX(++i);
+    double i = FIX2FLOAT(reg[(unsigned long)code[++pc]]);    
+    reg[(unsigned long)code[pc]] = FLOAT2FIX(++i);
   }  
 #endif  
   goto *code[++pc];
@@ -8659,14 +8674,14 @@ void *exec_code(int mode, VirtualMachine * restrict vm, void * restrict *code) {
 #if !defined(OPTIMISE_TWO_ADDRESS) || !defined(OPTIMISE_TWO_ADDRESS_UNARY)
   //    puts("DEC src dest");
   {
-    long i = FIX2INT(reg[(unsigned long)code[++pc]]);    
-    reg[(unsigned long)code[++pc]] = INT2FIX(--i);
+    double i = FIX2FLOAT(reg[(unsigned long)code[++pc]]);    
+    reg[(unsigned long)code[++pc]] = FLOAT2FIX(--i);
   }
 #else
   //    puts("DEC dest");
   {
-    long i = FIX2INT(reg[(unsigned long)code[++pc]]);    
-    reg[(unsigned long)code[pc]] = INT2FIX(--i);
+    double i = FIX2FLOAT(reg[(unsigned long)code[++pc]]);    
+    reg[(unsigned long)code[pc]] = FLOAT2FIX(--i);
   }
   
 #endif  
@@ -8742,8 +8757,8 @@ loop_a2IsFixnum:
     if (IS_FIXNUM(a1)) {
 
       printf("Runtime ERROR: "); puts_term(a1); printf("~"); puts_term(a2); 
-      printf("\nInteger %ld >< %ld can not be used as an active pair\n",
-	     FIX2INT(a1), FIX2INT(a2));
+      printf("\nFloat %f >< %f can not be used as an active pair\n",
+	     FIX2FLOAT(a1), FIX2FLOAT(a2));
 #ifndef THREAD
       mark_and_sweep();
     return;
@@ -8761,7 +8776,6 @@ loop_a2IsFixnum:
       RuleTable_get_code_for_Int(a1, &code);
       
       if (code == NULL) {
-
 
 #ifdef INPLA_USE_BUILTINS
 	// ------------------------------------------------
@@ -8919,8 +8933,6 @@ loop_agent_a1_a2_this_order:
 	#include "builtin_OP-OP.inc.c"
 	// ------------------------------------------------
 #endif
-	
-
 
 	// Wildcard Agents
 	code = RuleTable_get_code(BASIC(a1)->id, ID_WILDCARD, &result);
@@ -9234,7 +9246,7 @@ typedef struct {
 
 int SimulationInfo_getid(VALUE ptr) {
     if (IS_FIXNUM(ptr)) {
-      return ID_INT;
+      return ID_FLOAT;
     }
 
     if (IS_NAMEID(BASIC(ptr)->id)) {
@@ -9393,11 +9405,13 @@ void SimulationInfo_execution_loop(void) {
 
     
     step++;
-
+		
+		#ifdef COUNT_INTERACTION
     if (SimulationInfo.verbose_stacked_eq) {
       printf("\t\t;");
       printf("%lu interactions\n",VM_Get_InteractionCount(&VM));
     }
+		#endif
 
     fflush(NULL);
     
@@ -9413,14 +9427,16 @@ void SimulationInfo_execution_loop(void) {
 int exec(Ast *at) {
   // Ast at: (AST_BODY stmlist aplist)
 
-  unsigned long long t, time;
   void** code = (void**)malloc(sizeof(void*) * MAX_EXEC_VMCODE_SEQUENCE);
   if (code == NULL) {
     puts("Error: Malloc error for code in exec func.");
     exit(-1);
   }
   
+	#ifndef SUPPRESS_OUTPUT
   start_timer(&t);
+  unsigned long long t, time;    
+	#endif
 
   CmEnv_clear_all();
 
@@ -9494,14 +9510,18 @@ int exec(Ast *at) {
 
 
     
-    if (left->id == AST_NAME) {
+    if ((left->id == AST_NAME) || (left->id == AST_FLOATVAR)) {
       select_kind_of_push(left, p1, p2);
       
-    } else if (right->id == AST_NAME) {
+    } else if ((right->id == AST_NAME) || (right->id == AST_FLOATVAR)) {
       select_kind_of_push(right, p2, p1);
       
     } else {
-      IMCode_genCode2(OP_PUSH, p1, p2);
+      if ((left->id == AST_FLOAT) || (right->id == AST_FLOAT)) {
+         IMCode_genCode2(OP_MYPUSH, p1, p2);
+      } else {
+         IMCode_genCode2(OP_PUSH, p1, p2);
+      }
     }
     
     at = ast_getTail(at);
@@ -9583,8 +9603,8 @@ int exec(Ast *at) {
       eval_equation(&VM, t1, t2);   
     } 
   } 
-
   
+#ifndef SUPPRESS_OUTPUT
   time=stop_timer(&t);
 #ifdef COUNT_INTERACTION
   
@@ -9601,6 +9621,7 @@ int exec(Ast *at) {
 #else
   printf("(%.2f sec)\n", 
 	 (double)(time)/1000000);
+#endif
 #endif
 
 #ifdef COUNT_MKAGENT
@@ -9758,8 +9779,9 @@ void tpool_destroy(void) {
 
 int exec(Ast *at) {
   // Ast at: (AST_BODY stmlist aplist)
-  
+	#ifndef SUPPRESS_OUTPUT 
   unsigned long long t, time;
+	#endif
   int eqsnum = 0;
 
   void** code = (void**)malloc(sizeof(void*) * MAX_EXEC_VMCODE_SEQUENCE);
@@ -9776,7 +9798,10 @@ int exec(Ast *at) {
   }
 #endif
   
+	#ifndef SUPPRESS_OUTPUT
   start_timer(&t);
+  unsigned long long t, time;
+	#endif
   
   CmEnv_clear_all();
 
@@ -9826,14 +9851,18 @@ int exec(Ast *at) {
     }
 
     
-    if (left->id == AST_NAME) {
+    if ((left->id == AST_NAME) || (left->id == AST_FLOATVAR)) {
       select_kind_of_push(left, p1, p2);
       
-    } else if (right->id == AST_NAME) {
+    } else if ((right->id == AST_NAME) || (right->id == AST_FLOATVAR)) {
       select_kind_of_push(right, p2, p1);
       
     } else {
-      IMCode_genCode2(OP_PUSH, p1, p2);
+      if ((left->id == AST_FLOAT) || (right->id == AST_FLOAT)) {
+         IMCode_genCode2(OP_MYPUSH, p1, p2);
+      } else {
+         IMCode_genCode2(OP_PUSH, p1, p2);
+      }
     }
         
     eqsnum++;   // for distrubution
@@ -9930,6 +9959,7 @@ int exec(Ast *at) {
   }
 
   
+#ifndef SUPPRESS_OUTPUT
   time=stop_timer(&t);
 
 #ifdef COUNT_INTERACTION
@@ -9948,6 +9978,7 @@ int exec(Ast *at) {
   printf("(%.2f sec by %d threads)\n", 	
           (double)(time)/1000000.0,
           MaxThreadsNum);
+#endif
 #endif
 
 
@@ -10355,6 +10386,7 @@ int main(int argc, char *argv[])
     }
   }
 
+#ifndef SUPPRESS_OUTPUT
 #ifndef THREAD
   if (WHNFinfo.enable) {
     printf("Inpla %s (Weak Strategy) : Interaction nets as a programming language", VERSION);
@@ -10371,6 +10403,7 @@ int main(int argc, char *argv[])
 #else
   printf("Inpla %s : Interaction nets as a programming language", VERSION);
   printf(" [built: %s]\n", BUILT_DATE);    
+#endif
 #endif
 
 

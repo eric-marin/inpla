@@ -9,7 +9,7 @@
 // 257 ..  : GNAME
 
 
-#define ID_INT       0
+#define ID_FLOAT       0
 
 
 // NOTE:
@@ -31,7 +31,7 @@
 
 #define ID_WILDCARD  9
 
-#define ID_INTAGENT 10   // This is an experimental dummy agent
+#define ID_FLOATAGENT 10   // This is an experimental dummy agent
                          // to show the use effect of Int agent.
 #define START_ID_OF_BUILTIN_CONSTRUCTOR_AGENT 10
 
@@ -60,25 +60,24 @@
 // because these IDs are wanted larger like ID_DUP > any_agent.id
 
 
+#define NUM_AGENTS 1000  // Increased from 256
+
 #define START_ID_OF_USER_AGENT END_ID_OF_BUILTIN_OP_AGENT+1
-#define END_ID_OF_AGENT 255
+#define END_ID_OF_AGENT (NUM_AGENTS-1)
 
 #define END_ID_OF_USER_AGENT END_ID_OF_AGENT-2
 #define ID_ERASER END_ID_OF_AGENT-1
 #define ID_DUP END_ID_OF_AGENT
 
 
-#define NUM_AGENTS END_ID_OF_AGENT+1  // 256
-
-#define ID_NAME NUM_AGENTS // starts from 256 (NUM_AGENTS)
+#define ID_NAME NUM_AGENTS // starts from 1000
 #define START_ID_OF_GNAME  ID_NAME+1
 
 
-#define NUM_GNAMES NUM_AGENTS // 256: the same as the size of AGENT
+#define NUM_GNAMES 1000000 // 1,000,000 global names
 
 
-//#define IS_AGENTID(a) (a <= ID_END_ID_OF_AGENT)
-#define IS_AGENTID(a) (!(a & 0x100)) // less than 256
+#define IS_AGENTID(a) ((a) < ID_NAME)
 
 
 #define IS_NAMEID(a) ((a) >= ID_NAME)

@@ -21,7 +21,7 @@ typedef struct NameList {
   struct NameList *next;
 } NameList;
 
-#define NAME_HASHSIZE  127
+#define NAME_HASHSIZE  65535
 //static NameList *NameHashTable[NAME_HASHSIZE];  // HashTable for name strings
 
 // It should be called at first, and never called after that.

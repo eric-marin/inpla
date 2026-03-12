@@ -36,7 +36,7 @@ void IdTable_init() {
   IdTable[ID_TUPLE5].aux.arity = 5;
   IdTable[ID_NIL].aux.arity = 0;
   IdTable[ID_CONS].aux.arity = 2;
-  IdTable[ID_INTAGENT].aux.arity = 1;
+  IdTable[ID_FLOATAGENT].aux.arity = 1;
 
   IdTable[ID_APPEND].aux.arity = 2;
   IdTable[ID_ZIP].aux.arity = 2;
@@ -60,7 +60,7 @@ void IdTable_init() {
   IdTable[ID_DUP].aux.arity = 2;
 
   
-  IdTable[ID_INT].name = "Int";
+  IdTable[ID_FLOAT].name = "Float";
   IdTable[ID_TUPLE0].name = "Tuple0";
   IdTable[ID_TUPLE1].name = "Tuple1";
   IdTable[ID_TUPLE2].name = "Tuple2";
@@ -69,7 +69,7 @@ void IdTable_init() {
   IdTable[ID_TUPLE5].name = "Tuple5";
   IdTable[ID_NIL].name = "[]";
   IdTable[ID_CONS].name = "Cons";
-  IdTable[ID_INTAGENT].name = "Int";
+  IdTable[ID_FLOATAGENT].name = "Float";
   IdTable[ID_WILDCARD].name = "Wildcard";
   
   IdTable[ID_APPEND].name = "Append";
@@ -122,8 +122,8 @@ int IdTable_getid_builtin_funcAgent(Ast *agent) {
     id = ID_ZIP;      
   } else if (strcmp((char *)agent->left->sym, "Map") == 0) {
     id = ID_MAP;      
-  } else if (strcmp((char *)agent->left->sym, "Int") == 0) {
-    id = ID_INTAGENT;
+  } else if (strcmp((char *)agent->left->sym, "Float") == 0) {
+    id = ID_FLOATAGENT;
   } else if (strcmp((char *)agent->left->sym, "Merger") == 0) {
     id = ID_MERGER;
   } else if (strcmp((char *)agent->left->sym, "Eraser") == 0) {

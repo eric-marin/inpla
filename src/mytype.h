@@ -53,8 +53,20 @@ typedef struct EQList_tag {
 
 
 #define FIXNUM_FLAG 0x01
-#define INT2FIX(i) ((VALUE)(((long)(i) << 1) | FIXNUM_FLAG))
-#define FIX2INT(i) ((long)(i) >> 1)
+
+static inline VALUE FLOAT2FIX(double f) {
+  union { float f; unsigned int i; } u;
+  u.f = (float)f;
+  VALUE v = u.i;
+  return (v << 32) | FIXNUM_FLAG;
+}
+
+static inline double FIX2FLOAT(VALUE v) {
+  union { float f; unsigned int i; } u;
+  u.i = (unsigned int)(v >> 32);
+  return (double)u.f;
+}
+
 #define IS_FIXNUM(i) ((VALUE)(i) & FIXNUM_FLAG)
 
 

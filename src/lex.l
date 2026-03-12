@@ -100,7 +100,7 @@ int yycolumn = 1;
 <INITIAL>"<=" return(LE);
 <INITIAL>"<<" return (ABR);
 
-<INITIAL>"int" return(INT);
+<INITIAL>"float" return(FLOAT);
 
 <INITIAL>"let" return(LET);
 <INITIAL>"in" return(IN);
@@ -132,7 +132,7 @@ int yycolumn = 1;
          return (NAME);}
 <INITIAL>[A-Z][a-zA-Z0-9_'\.]* { yylval.chval = strdup(yytext);
          return (AGENT);}
-<INITIAL>[0-9]+ { yylval.longval = atol(yytext);
+<INITIAL>[0-9]+(\.[0-9]*)?([eE][+-]?[0-9]+)? { yylval.doubleval = atof(yytext);
          return (NUMERAL_LITERAL);}
 
 <INITIAL>"//"[^\n]* ; //comment

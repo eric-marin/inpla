@@ -1,6 +1,6 @@
 CC      = gcc
 CFLAGS  = -Wall -Winline -O3 -std=gnu99 --param inline-unit-growth=1000 --param max-inline-insns-single=1200
-LDFLAGS = 
+LDFLAGS = -lm
 LIBS    = 
 INCLUDE = -I ./src
 SRC_DIR = ./src

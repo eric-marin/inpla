@@ -183,7 +183,7 @@
 
 
 
-#define COUNT_INTERACTION  // Count the amount of interactions.
+//#define COUNT_INTERACTION  // Count the amount of interactions.
 
 
 
