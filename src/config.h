@@ -2,13 +2,16 @@
 #ifndef CONFIG_H_
 #define CONFIG_H_
 
+#define SUPPRESS_OUTPUT
+// #define THREAD
+
 // ------------------------------------------------
 // Number of Agent Ports 
 // ------------------------------------------------
 // MAX_PORT defines a number of ports of agents.
 // Default is 5 and should be 2 or more.
 
-#define MAX_PORT 5
+#define MAX_PORT 6
 
 
 // ------------------------------------------------

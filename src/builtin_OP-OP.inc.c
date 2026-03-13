@@ -760,7 +760,7 @@
 	  if (BASIC(a2)->id == ID_TUPLE2) {
 	    
 	    // %foo >< @(args, s)
-	    int percented_id = FIX2INT(AGENT(a1)->port[0]);
+	    double percented_id = FIX2FLOAT(AGENT(a1)->port[0]);
 	    int arity = IdTable_get_arity(percented_id);
 
 	    if (arity < 1) {
